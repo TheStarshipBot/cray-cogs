@@ -1,6 +1,6 @@
 import contextlib
 import logging
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 import discord
 from fuzzywuzzy import process
@@ -70,11 +70,11 @@ class DonoBank:
 
     def __hash__(self):
         return hash((self.name, self.guild_id))
-    
+
     @property
     def guild(self) -> discord.Guild:
         return self.bot.get_guild(self.guild_id)
-    
+
     @property
     def auto_channel(self) -> discord.TextChannel:
         return self.guild.get_channel(self.auto_channel_id)
@@ -123,10 +123,10 @@ class DonoBank:
             try:
                 data.pop("emoji")
                 data.pop("autochannel")
-                
+
             except KeyError:
-                pass 
-            
+                pass
+
             if not data:
                 return
             amount = self.get_user(user.id).donations
@@ -245,7 +245,15 @@ class DonationManager:
                     "guild_category", guild, category_name
                 ).donations()
                 self._CACHE.append(
-                    DonoBank(self.bot, self, category_name, d["emoji"], guild, d.get("autochannel"), donos)
+                    DonoBank(
+                        self.bot,
+                        self,
+                        category_name,
+                        d["emoji"],
+                        guild,
+                        d.get("autochannel"),
+                        donos,
+                    )
                 )
 
         log.debug(f"DonationLogging cache populated with {len(self._CACHE)} entries.")

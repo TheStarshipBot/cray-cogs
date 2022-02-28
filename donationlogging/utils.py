@@ -20,16 +20,17 @@ billion = 1000000000
 million = 1000000
 thousand = 1000
 amount_dict = {
-    "m": million, 
-    "mil": million, 
-    "million": million, 
-    "b": billion, 
-    "bil": billion, 
-    "billion": billion, 
-    "th": thousand, 
-    "thousand": thousand, 
-    "k":thousand
+    "m": million,
+    "mil": million,
+    "million": million,
+    "b": billion,
+    "bil": billion,
+    "billion": billion,
+    "th": thousand,
+    "thousand": thousand,
+    "k": thousand,
 }
+
 
 class EmojiConverter(EmojiConverter):
     def __init__(self, *args, **kwargs):
@@ -44,8 +45,9 @@ class EmojiConverter(EmojiConverter):
                     raise BadArgument(
                         "You need to provide a unicode emoji or a valid custom emoji that the bot has access to."
                     )
-                    
+
         return argument
+
 
 class CategoryConverter(commands.Converter):
     async def convert(self, ctx, argument):
@@ -69,10 +71,10 @@ class CategoryMaker(commands.Converter):
             raise BadArgument(
                 f"You need to provide a name and emoji for the category separated by a comma (`name,emoji`). You only provided `{argument}`."
             )
-            
+
         emoji = await EmojiConverter().convert(ctx, emoji)
         emoji = str(emoji)
-        
+
         if len(name) > 32:
             raise BadArgument("The name of the category can't be longer than 32 characters.")
 
@@ -179,12 +181,13 @@ class MoniConverter(commands.Converter):
                     "Invalid amount format. Valid units are `m(il|illion)`, `b(il|illion)`, `th(ousand)` and `k` or exponents `e`.\n"
                     "For example: `1.5m`, `1.5e3`, `100million` etc"
                 )
-        
+
         total = 0
         for amount, unit in matches:
             total += float(amount) * amount_dict[unit]
-            
+
         return int(total)
+
 
 class AmountRoleConverter(commands.Converter):
     async def convert(self, ctx, argument: str):
