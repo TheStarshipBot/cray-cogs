@@ -1,6 +1,6 @@
 import contextlib
 import logging
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Optional
 
 import discord
 from fuzzywuzzy import process
@@ -54,6 +54,7 @@ class DonoBank:
         name: str,
         emoji: str,
         guild_id: int,
+        auto_channel: Optional[int],
         data: Dict[int, int] = {},
     ):
         self.bot = bot
@@ -61,6 +62,7 @@ class DonoBank:
         self.name = name
         self.emoji = emoji
         self.guild_id = guild_id
+        self.auto_channel_id = auto_channel
         self._data = data
 
     def __str__(self):
@@ -68,6 +70,14 @@ class DonoBank:
 
     def __hash__(self):
         return hash((self.name, self.guild_id))
+    
+    @property
+    def guild(self) -> discord.Guild:
+        return self.bot.get_guild(self.guild_id)
+    
+    @property
+    def auto_channel(self) -> discord.TextChannel:
+        return self.guild.get_channel(self.auto_channel_id)
 
     def get_user(self, user_id: int) -> DonoUser:
         return DonoUser(
@@ -110,7 +120,13 @@ class DonoBank:
             data: dict = await (
                 getattr(self.manager.config.guild(ctx.guild).categories, self.name)
             )()
-            data.pop("emoji")
+            try:
+                data.pop("emoji")
+                data.pop("autochannel")
+                
+            except KeyError:
+                pass 
+            
             if not data:
                 return
             amount = self.get_user(user.id).donations
@@ -229,7 +245,7 @@ class DonationManager:
                     "guild_category", guild, category_name
                 ).donations()
                 self._CACHE.append(
-                    DonoBank(self.bot, self, category_name, d["emoji"], guild, donos)
+                    DonoBank(self.bot, self, category_name, d["emoji"], guild, d.get("autochannel"), donos)
                 )
 
         log.debug(f"DonationLogging cache populated with {len(self._CACHE)} entries.")
@@ -245,7 +261,7 @@ class DonationManager:
         log.debug("Cache backed up to config.")
 
     async def get_dono_bank(
-        self, name: str, guild_id: int, *, emoji=None, force=False
+        self, name: str, guild_id: int, *, emoji=None, auto_channel_id=None, force=False
     ) -> DonoBank:
         try:
             name = await self._create_category(guild_id, name, emoji=emoji, force=force)
@@ -263,6 +279,7 @@ class DonationManager:
             name,
             emoji,
             guild_id,
+            auto_channel_id,
             await self.config.custom("guild_category", guild_id, name).donations(),
         )
         self._CACHE.append(bank)

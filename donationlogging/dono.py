@@ -1,5 +1,6 @@
 import asyncio
 import operator
+import re
 import time
 from collections import namedtuple
 from typing import List, Optional
@@ -15,9 +16,24 @@ from redbot.core.utils.menus import DEFAULT_CONTROLS, menu, start_adding_reactio
 from redbot.core.utils.predicates import MessagePredicate, ReactionPredicate
 from tabulate import tabulate
 
-from donationlogging.models import DonationManager, DonoUser
-
-from .utils import *
+from .models import DonationManager, DonoUser, DonoBank
+from .utils import (
+    MoniConverter,
+    CategoryConverter,
+    CategoryMaker,
+    EmojiConverter,
+    category_conv,
+    channel_conv,
+    amount_dict,
+    amount_regex,
+    manager_roles,
+    amountrole_conv,
+    ask_for_answers,
+    setup_done,
+    is_dmgr,
+    flags,
+    AmountRoleConverter
+)
 
 
 class DonationLogging(commands.Cog):
@@ -47,6 +63,11 @@ class DonationLogging(commands.Cog):
         self.config.register_member(notes={})
 
         self.conv = MoniConverter().convert  # api for giveaway cog.
+        
+        self._task = self._back_to_config.start()
+        
+        self.message_cooldown = commands.CooldownMapping.from_cooldown(1, 30, commands.BucketType.guild)
+        # have a 30 sec cooldown per guild for auto logging.
 
     @classmethod
     async def initialize(cls, bot):
@@ -58,6 +79,10 @@ class DonationLogging(commands.Cog):
         self.cache = await DonationManager.initialize(bot)
 
         return self
+    
+    async def is_user_manager(self, user: discord.Member):
+        role_ids = await self.config.guild(user.guild).managers()
+        return any(role_id in user._roles for role_id in role_ids)
 
     def format_help_for_context(self, ctx: commands.Context):
         pre_processed = super().format_help_for_context(ctx)
@@ -70,6 +95,7 @@ class DonationLogging(commands.Cog):
         return "\n".join(text)
 
     def cog_unload(self):
+        self._task.cancel()
         self.bot._backing_up_task = asyncio.create_task(self.cache._back_to_config())
 
     async def get_old_data(self, guild: discord.Guild):
@@ -87,7 +113,116 @@ class DonationLogging(commands.Cog):
 
     @tasks.loop(minutes=5)
     async def _back_to_config(self):
+        if not (getattr(self.cache, "_back_to_config", None)):
+            # this is none for a while when cog is loading.
+            return
+        
         await self.cache._back_to_config()
+        
+    @_back_to_config.before_loop
+    async def before_backing_up(self):
+        await self.bot.wait_until_red_ready()
+        
+    @commands.Cog.listener()
+    async def on_message_without_command(self, message: discord.Message):
+        if message.guild is None:
+            return
+        
+        matches = re.findall(amount_regex, message.content)
+        if not matches:
+            return
+        
+        bucket = self.message_cooldown.get_bucket(message)
+        retry_after = bucket.update_rate_limit()
+        if retry_after:
+            return
+        
+        banks = await self.cache.get_all_dono_banks(message.guild.id)
+        valid_banks = [bank for bank in banks if bank.auto_channel_id and bank.auto_channel_id == message.channel.id]
+
+        if not valid_banks:
+            return
+        
+        bank = valid_banks[0]
+        # just gonna use the first one, You shouldnt have 1 channel for multiple banks anyways.
+        # and im too lazy to handle multiple banks.
+        
+        emojis = ReactionPredicate.NUMBER_EMOJIS
+        tick_emoji, cross_emoji = ReactionPredicate.YES_OR_NO_EMOJIS
+        
+        emoji_amount_dict = {}
+        
+        embed = discord.Embed(
+            title=f"**Auto Donation Logger for {bank.name}!**",
+            description=f"The following amount matches were found in {message.author}'s message\n"
+                        f"If any of these are wrong or you think this is a mistake, please click the `{cross_emoji}` reaction.\n"
+                        "And resend the correct amount(s) in a separate message after 30 seconds.\n\n"
+                        f"Click the `{tick_emoji}` reaction to add he total sum of all matches or "
+                        "one of the numeric reactions to add a specific match.",
+            color=await self.bot.get_embed_color(message.channel)
+        )
+        
+        total = 0
+        
+        for index, (amount, unit) in enumerate(matches):
+            amt = int(float(amount) * amount_dict[unit])
+            emoji_amount_dict[emojis[index]] = amt
+            
+            total += amt
+            
+            embed.add_field(
+                name=f"**{bank.emoji} {amt:,}**",
+                value=f"{emojis[index]} to add this amount",
+                inline=True
+            )
+            
+            if index == 8:
+                break # staying on the safe side.
+            
+        embed.add_field(
+            name=f"**Total Amount: {bank.emoji} {total:,}**",
+            value=f"{tick_emoji} to add the total amount",
+            inline=False
+        )
+        
+        emoji_amount_dict[tick_emoji] = total
+        emoji_amount_dict[cross_emoji] = 0
+        
+        role_ids = await self.config.guild(message.guild).managers()
+        
+        msg: discord.Message = await message.channel.send(embed=embed)
+        
+        def predicate(reaction: discord.Reaction, user: discord.User):
+            return (
+                reaction.message.id == msg.id
+                and reaction.emoji in emoji_amount_dict
+                and any(role_id in user._roles for role_id in role_ids)
+            )
+        
+        start_adding_reactions(msg, emoji_amount_dict.keys())
+        
+        try:
+            reaction, user = await self.bot.wait_for("reaction_add", check=predicate, timeout=30)
+            try:
+                await msg.clear_reactions()
+            except Exception:
+                pass
+        
+        except asyncio.TimeoutError:
+            try:
+                await msg.clear_reactions()
+            except Exception:
+                pass
+            return await message.channel.send("You took too long to respond. Cancelling.")
+        
+        if str(reaction.emoji) == cross_emoji:
+            return await message.channel.send("Aight cancelling.")
+        
+        fake_message = f"{(await self.bot.get_valid_prefixes(message.guild))[0]}dono add {bank.name} {emoji_amount_dict[str(reaction.emoji)]}"
+        message.content = fake_message
+        message.author = user
+        
+        await self.bot.process_commands(message)
 
     @commands.group(name="dono", invoke_without_command=True)
     async def dono(self, ctx):
@@ -158,6 +293,12 @@ class DonationLogging(commands.Cog):
                 "milestones",
                 amountrole_conv(ctx),
             ),
+            (
+                "Do you want to set a channel for auto donations?",
+                'Type "None" if you dont want that',
+                "autochannel",
+                channel_conv(ctx),
+            )
         ]
 
         answers = await ask_for_answers(ctx, questions, 60)
@@ -169,6 +310,7 @@ class DonationLogging(commands.Cog):
         channel = answers["channel"]
         bank = answers["category"]
         pairs = answers["milestones"]
+        autochannel = answers["autochannel"]
 
         emb = discord.Embed(title="Is all this information valid?", color=await ctx.embed_color())
         emb.add_field(
@@ -197,6 +339,10 @@ class DonationLogging(commands.Cog):
             value=f"Answer: \n`{ans4}`" if pairs else f"Answer: `None given`.",
             inline=False,
         )
+        emb.add_field(
+            name="Question: `{questions[4][0]}`",
+            value=f"Answer: `{f'#{autochannel.name}' if answers['autochannel'] else 'None'}`",
+        )
 
         confirmation = await ctx.send(embed=emb)
         start_adding_reactions(confirmation, ReactionPredicate.YES_OR_NO_EMOJIS)
@@ -210,9 +356,10 @@ class DonationLogging(commands.Cog):
             await self.category_remove(ctx, bank)
             return await ctx.send("Aight, retry the command and do it correctly this time.")
 
-        await self.config.guild(ctx.guild).logchannel.set(channel.id if channel else None)
+        await self.config.guild(ctx.guild).logchannel.set(getattr(channel, "id", None))
         await self.config.guild(ctx.guild).managers.set([role.id for role in roles])
         await self.config.guild(ctx.guild).setup.set(True)
+        bank.auto_channel_id = getattr(autochannel, "id", None)
         if pairs:
             await bank.setroles(pairs)
         await self.cache.set_default_category(ctx.guild.id, bank.name)
@@ -931,6 +1078,33 @@ class DonationLogging(commands.Cog):
             color=await ctx.embed_color(),
         )
         await ctx.send(embed=embed)
+        
+    @category.group(name="edit")
+    @commands.mod_or_permissions(administrator=True)
+    @setup_done()
+    async def category_edit(self, ctx):
+        """
+        Edit a donation category's details"""
+        
+    @category_edit.command(name="emoji")
+    async def category_edit_emoji(self, ctx: commands.Context, category: CategoryConverter, emoji: EmojiConverter):
+        category.emoji = str(emoji)
+        async with self.cache.config.guild_from_id(category.guild_id).categories() as categories:
+            categories.setdefault(
+                category.name, {"emoji": category.emoji}
+            )  # edge case that the category doesnt exist there.
+            categories[category.name].update({"emoji": category.emoji})
+        return await ctx.send(f"The emoji for {category.name} has been changed to {category.emoji}")
+    
+    @category_edit.command(name="autochannel", aliases=["autologgingchannel", "alc", "ac"])
+    async def caegory_edit_autochannel(self, ctx: commands.Context, category: CategoryConverter, channel: discord.TextChannel):
+        category.auto_channel_id = channel.id
+        async with self.cache.config.guild_from_id(category.guild_id).categories() as categories:
+            categories.setdefault(
+                category.name, {"emoji": category.emoji}
+            )  # edge case that the category doesnt exist there.
+            categories[category.name].update({"autochannel": channel.id})
+        return await ctx.send(f"The auto donation logging channel for {category.name} has been changed to {channel.mention}")
 
     @category.command(name="default")
     @commands.mod_or_permissions(administrator=True)

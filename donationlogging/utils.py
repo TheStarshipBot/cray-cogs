@@ -15,9 +15,37 @@ from redbot.core.utils.predicates import MessagePredicate
 from .exceptions import CategoryAlreadyExists, CategoryDoesNotExist
 from .models import DonoBank
 
-time_regex = re.compile(r"(?:(\d{1,5})(h|s|m|d))+?")
-time_dict = {"h": 3600, "s": 1, "m": 60, "d": 86400}
+amount_regex = re.compile(r"(?:((?:\d|\.)+\s*)(m|mil|million|b|bil|billion|th|thousand|k))+?")
+billion = 1000000000
+million = 1000000
+thousand = 1000
+amount_dict = {
+    "m": million, 
+    "mil": million, 
+    "million": million, 
+    "b": billion, 
+    "bil": billion, 
+    "billion": billion, 
+    "th": thousand, 
+    "thousand": thousand, 
+    "k":thousand
+}
 
+class EmojiConverter(EmojiConverter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    async def convert(self, ctx, argument):
+        if not argument == "⏣":
+            if not argument in UNICODE_EMOJI_ENGLISH.keys():
+                try:
+                    argument = await super().convert(ctx, argument)
+                except EmojiNotFound:
+                    raise BadArgument(
+                        "You need to provide a unicode emoji or a valid custom emoji that the bot has access to."
+                    )
+                    
+        return argument
 
 class CategoryConverter(commands.Converter):
     async def convert(self, ctx, argument):
@@ -41,18 +69,13 @@ class CategoryMaker(commands.Converter):
             raise BadArgument(
                 f"You need to provide a name and emoji for the category separated by a comma (`name,emoji`). You only provided `{argument}`."
             )
-        if not emoji == "⏣":
-            if not emoji in UNICODE_EMOJI_ENGLISH.keys():
-                try:
-                    emoji = await EmojiConverter().convert(ctx, emoji)
-                except EmojiNotFound:
-                    raise BadArgument(
-                        "You need to provide a unicode emoji or a valid custom emoji that the bot has access to."
-                    )
+            
+        emoji = await EmojiConverter().convert(ctx, emoji)
+        emoji = str(emoji)
+        
         if len(name) > 32:
             raise BadArgument("The name of the category can't be longer than 32 characters.")
 
-        emoji = str(emoji)
         exists, potential_name = await ctx.cog.cache._verify_guild_category(ctx.guild.id, name)
         if not exists:
             if not potential_name:
@@ -147,24 +170,21 @@ class flags(commands.Converter):
 
 class MoniConverter(commands.Converter):
     async def convert(self, ctx, argument):
-        try:
-            total_stars = 0
-            num_map = {"K": 1000, "M": 1000000, "B": 1000000000}
-            if argument.isdigit():
-                total_stars = int(argument)
-            else:
-                if len(argument) > 1:
-                    total_stars = float(argument[:-1]) * num_map.get(argument[-1].upper(), 1)
-            return int(total_stars)
-
-        except:
+        matches = re.findall(amount_regex, argument)
+        if not matches:
             try:
                 return int(float(argument))
-            except:
-                if re.match(r"<@!?([0-9]+)>$", argument):
-                    raise BadArgument(f"The mention comes after the amount.")
-                raise BadArgument(f"Couldn't convert {argument} to a proper amount.")
-
+            except Exception:
+                raise BadArgument(
+                    "Invalid amount format. Valid units are `m(il|illion)`, `b(il|illion)`, `th(ousand)` and `k` or exponents `e`.\n"
+                    "For example: `1.5m`, `1.5e3`, `100million` etc"
+                )
+        
+        total = 0
+        for amount, unit in matches:
+            total += float(amount) * amount_dict[unit]
+            
+        return int(total)
 
 class AmountRoleConverter(commands.Converter):
     async def convert(self, ctx, argument: str):
