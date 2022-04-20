@@ -47,7 +47,7 @@ class Giveaways(commands.Cog):
     This cog is a very complex cog and could be resource intensive on your bot.
     Use `giveaway explain` command for an indepth explanation on how to use the commands."""
 
-    __version__ = "2.4.3"
+    __version__ = "2.4.4"
     __author__ = ["crayyy_zee#2900"]
 
     def __init__(self, bot: Red):
@@ -153,7 +153,10 @@ class Giveaways(commands.Cog):
         try:
             copy = self._CACHE.copy()
             for guild_id, data in copy.items():
-                for message_id, giveaway in data.items():
+                cpy = data.copy() 
+                # for some reason it errors that 
+                # dict changed size during iteration even though i dont do anything like that
+                for message_id, giveaway in cpy.items():
                     json = giveaway.json
                     await self.config.custom("giveaway", guild_id, message_id).set(json)
 
