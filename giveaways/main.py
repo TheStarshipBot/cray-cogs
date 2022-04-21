@@ -153,8 +153,8 @@ class Giveaways(commands.Cog):
         try:
             copy = self._CACHE.copy()
             for guild_id, data in copy.items():
-                cpy = data.copy() 
-                # for some reason it errors that 
+                cpy = data.copy()
+                # for some reason it errors that
                 # dict changed size during iteration even though i dont do anything like that
                 for message_id, giveaway in cpy.items():
                     json = giveaway.json
