@@ -47,7 +47,7 @@ class Giveaways(commands.Cog):
     This cog is a very complex cog and could be resource intensive on your bot.
     Use `giveaway explain` command for an indepth explanation on how to use the commands."""
 
-    __version__ = "2.4.4"
+    __version__ = "2.4.5"
     __author__ = ["crayyy_zee#2900"]
 
     def __init__(self, bot: Red):

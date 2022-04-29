@@ -144,16 +144,26 @@ class GiveawayMeta:
 
     async def get_embed_color(self):
         set_color = (await get_guild_settings(self.guild.id)).color
-        bot_color = await self.bot.get_embed_color(self.channel)
+        channel = self.channel or await self.bot.fetch_channel(self.channel_id)
+        
+        if not channel:
+            raise GiveawayError("The channel for this giveaway could not be found.")
+        
+        bot_color = await self.bot.get_embed_color(channel)
 
         return discord.Color(set_color) if set_color else bot_color
 
     async def _get_message(self) -> Optional[discord.Message]:
         msg = list(filter(lambda x: x.id == self.message_id, self.bot.cached_messages))
+        channel = self.channel or await self.bot.fetch_channel(self.channel_id)
+        
+        if not channel:
+            raise GiveawayError("The channel for this giveaway could not be found.")
+        
         if msg:
             return msg[0]
         try:
-            msg = await self.channel.fetch_message(self.message_id)
+            msg = await channel.fetch_message(self.message_id)
         except Exception:
             msg = None
         return msg
@@ -460,6 +470,10 @@ class Giveaway(GiveawayMeta):
         thank = flags.thank
 
         settings = await get_guild_settings(self.guild_id)
+        channel = self.channel or await self.bot.fetch_channel(self.channel_id)
+        
+        if not channel:
+            raise GiveawayError("The channel for this giveaway could not be found.")
 
         if ping:
             pingrole = settings.pingrole
@@ -480,7 +494,7 @@ class Giveaway(GiveawayMeta):
             )
 
         if any((kwargs["content"], kwargs["embed"])):
-            await self.channel.send(**kwargs, allowed_mentions=discord.AllowedMentions(roles=True))
+            await channel.send(**kwargs, allowed_mentions=discord.AllowedMentions(roles=True))
 
         if thank:
             tmsg = settings.tmsg
@@ -493,7 +507,7 @@ class Giveaway(GiveawayMeta):
                 ),
                 color=await self.get_embed_color(),
             )
-            await self.channel.send(embed=embed)
+            await channel.send(embed=embed)
 
     def pick_winners(self, entrants: List[discord.Member] = None):
         w_list = []
@@ -522,8 +536,13 @@ class Giveaway(GiveawayMeta):
         embed = await self.create_embed()
 
         settings = await get_guild_settings(self.guild_id)
+        
+        channel = self.channel or await self.bot.fetch_channel(self.channel_id)
+        
+        if not channel:
+            raise GiveawayError("The channel for this giveaway could not be found.")
 
-        gmsg: discord.Message = await self.channel.send(settings.msg, embed=embed)
+        gmsg: discord.Message = await channel.send(settings.msg, embed=embed)
         await gmsg.add_reaction(self.emoji)
 
         self.message_id = gmsg.id
@@ -536,10 +555,15 @@ class Giveaway(GiveawayMeta):
             raise GiveawayNotStarted(
                 "The Giveaway ({}) has not started yet".format(self.message_id)
             )
+            
+        channel = self.channel or await self.bot.fetch_channel(self.channel_id)
+        
+        if not channel:
+            raise GiveawayError("The channel for this giveaway could not be found.")
 
         msg = await self.message
         if not msg:
-            await self.channel.send(
+            await channel.send(
                 f"Can't find message with id: {self.message_id}. Removing id from active giveaways."
             )
             return EndedGiveaway.from_giveaway(
