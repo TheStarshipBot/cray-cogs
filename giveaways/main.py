@@ -47,7 +47,7 @@ class Giveaways(commands.Cog):
     This cog is a very complex cog and could be resource intensive on your bot.
     Use `giveaway explain` command for an indepth explanation on how to use the commands."""
 
-    __version__ = "2.4.5"
+    __version__ = "2.4.6"
     __author__ = ["crayyy_zee#2900"]
 
     def __init__(self, bot: Red):
@@ -360,6 +360,8 @@ class Giveaways(commands.Cog):
         )
 
         for i in giveaways:
+            if i.flags.message_channels and message.channel not in i.flags.message_channels:
+                continue
             bucket = i.flags.message_cooldown.get_bucket(message)
             retry_after = bucket.update_rate_limit()
             if not retry_after and getattr(i, "_message_cache", None):
@@ -1043,6 +1045,10 @@ class Giveaways(commands.Cog):
     > *--cooldown*
         This adds a cooldown to the message tracking for the requirement.
         This is useful if people will spam messages to fulfil the requirements.
+        
+    > *--message-channel*/*--msg-chan*
+        This sets the channel where the message tracking will be done. All messages from other channels will be ignored.
+        
 """
             + (
                 """
@@ -1091,9 +1097,9 @@ class Giveaways(commands.Cog):
         It gets kinda janky when you have multiple defaults set and the giveaway embed becomes too long.
         Easy way out, is to simply disable showing the defaults in the embed ;) `{ctx.clean_prefix}gset showdefaults`
 
-    > **Embed Color**
-        The default embed color doesn't look good to you? now worries, you can now customize the color for your server.
-        `{ctx.prefix}gset color`
+    > **Embed**
+        The giveaway embed can be completely customized as per your liking. All parts of an embed are editable
+        and their respective settings are available under the `{ctx.clean_prefix}gset embed` command.
         """
         )
 
