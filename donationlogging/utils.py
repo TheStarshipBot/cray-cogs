@@ -306,10 +306,10 @@ def setup_done():
     async def predicate(ctx):
         if not ctx.guild:
             return False
-        
+
         if not await ctx.cog.config.guild(ctx.guild).setup():
             return False
-        
+
         return True
 
     return commands.check(predicate)
