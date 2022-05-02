@@ -304,8 +304,12 @@ async def sortdict(argument, key_or_value="value"):
 
 def setup_done():
     async def predicate(ctx):
+        if not ctx.guild:
+            return False
+        
         if not await ctx.cog.config.guild(ctx.guild).setup():
             return False
+        
         return True
 
     return commands.check(predicate)
@@ -313,6 +317,8 @@ def setup_done():
 
 def is_dmgr():
     async def predicate(ctx):
+        if not ctx.guild:
+            return False
         cog = ctx.cog
         data = await cog.config.guild(ctx.guild).managers()
         if data:
