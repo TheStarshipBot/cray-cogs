@@ -145,10 +145,10 @@ class GiveawayMeta:
     async def get_embed_color(self):
         set_color = (await get_guild_settings(self.guild.id)).color
         channel = self.channel or await self.bot.fetch_channel(self.channel_id)
-        
+
         if not channel:
             raise GiveawayError("The channel for this giveaway could not be found.")
-        
+
         bot_color = await self.bot.get_embed_color(channel)
 
         return discord.Color(set_color) if set_color else bot_color
@@ -156,10 +156,10 @@ class GiveawayMeta:
     async def _get_message(self) -> Optional[discord.Message]:
         msg = list(filter(lambda x: x.id == self.message_id, self.bot.cached_messages))
         channel = self.channel or await self.bot.fetch_channel(self.channel_id)
-        
+
         if not channel:
             raise GiveawayError("The channel for this giveaway could not be found.")
-        
+
         if msg:
             return msg[0]
         try:
@@ -471,7 +471,7 @@ class Giveaway(GiveawayMeta):
 
         settings = await get_guild_settings(self.guild_id)
         channel = self.channel or await self.bot.fetch_channel(self.channel_id)
-        
+
         if not channel:
             raise GiveawayError("The channel for this giveaway could not be found.")
 
@@ -536,9 +536,9 @@ class Giveaway(GiveawayMeta):
         embed = await self.create_embed()
 
         settings = await get_guild_settings(self.guild_id)
-        
+
         channel = self.channel or await self.bot.fetch_channel(self.channel_id)
-        
+
         if not channel:
             raise GiveawayError("The channel for this giveaway could not be found.")
 
@@ -555,9 +555,9 @@ class Giveaway(GiveawayMeta):
             raise GiveawayNotStarted(
                 "The Giveaway ({}) has not started yet".format(self.message_id)
             )
-            
+
         channel = self.channel or await self.bot.fetch_channel(self.channel_id)
-        
+
         if not channel:
             raise GiveawayError("The channel for this giveaway could not be found.")
 

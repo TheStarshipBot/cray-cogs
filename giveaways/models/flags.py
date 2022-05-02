@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import List, Optional
 
 import discord
 from dateparser import parse
@@ -33,7 +33,9 @@ class GiveawayFlags(commands.Converter):
         self.message_cooldown: Optional[
             commands.CooldownMapping
         ] = commands.CooldownMapping.from_cooldown(1, self.cooldown, commands.BucketType.member)
-        self.message_channels: Optional[List[discord.TextChannel]] = data.get("message_channels", [])
+        self.message_channels: Optional[List[discord.TextChannel]] = data.get(
+            "message_channels", []
+        )
 
     @property
     def json(self):
@@ -77,7 +79,11 @@ class GiveawayFlags(commands.Converter):
                 "starts_in": datetime.fromtimestamp(json.get("starts_in"), timezone.utc)
                 if json.get("starts_in")
                 else None,
-                "message_channels": [chan for c in json.get("message_channels", []) if (chan:=guild.get_channel(c))],
+                "message_channels": [
+                    chan
+                    for c in json.get("message_channels", [])
+                    if (chan := guild.get_channel(c))
+                ],
             }
         )
         return cls(data=json)
@@ -139,7 +145,13 @@ class GiveawayFlags(commands.Converter):
             "--cooldown", "--cd", nargs="?", default=0, dest="message_cooldown", type=int
         )
         msg_req.add_argument(
-            "--message-channel", "--msg-channel", "--msg-chan", "--msg-ch", dest="message_channels", nargs="+", default=[]
+            "--message-channel",
+            "--msg-channel",
+            "--msg-chan",
+            "--msg-ch",
+            dest="message_channels",
+            nargs="+",
+            default=[],
         )
 
         try:
@@ -273,7 +285,7 @@ class GiveawayFlags(commands.Converter):
                 raise commands.BadArgument("The cooldown can not be greater than 60 seconds.")
 
             flags["message_cooldown"] = abs(msg_cd)
-            
+
         if msg_chans := flags.get("message_channels"):
             new_chans = []
             for chan in msg_chans:
@@ -281,7 +293,7 @@ class GiveawayFlags(commands.Converter):
                     new_chans.append(await commands.TextChannelConverter().convert(ctx, chan))
                 except Exception as e:
                     raise commands.BadArgument(f"{chan} is not a valid text channel")
-                
+
             flags["message_channels"] = new_chans
-            
+
         return cls(data=flags)
