@@ -40,6 +40,8 @@ log = logging.getLogger("red.craycogs.giveaways")
 
 
 class Giveaways(commands.Cog):
+    
+    LOADED = False
 
     """
     Host embedded giveaways in your server with the help of reactions.
@@ -47,7 +49,7 @@ class Giveaways(commands.Cog):
     This cog is a very complex cog and could be resource intensive on your bot.
     Use `giveaway explain` command for an indepth explanation on how to use the commands."""
 
-    __version__ = "2.4.6"
+    __version__ = "2.4.7"
     __author__ = ["crayyy_zee#2900"]
 
     def __init__(self, bot: Red):
@@ -59,6 +61,8 @@ class Giveaways(commands.Cog):
         self._CACHE: Dict[int, Dict[int, Union[Giveaway, EndedGiveaway]]] = {}
 
         self.gs = get_guild_settings
+
+        self.LOADED = False
 
     # < ----------------- Internal Private Methods ----------------- > #
 
@@ -110,6 +114,8 @@ class Giveaways(commands.Cog):
         self.save_giveaways_task = self.save_giveaways.start()
 
         self.bot.add_dev_env_value("giveaways", lambda x: self)
+        
+        self.LOADED = True
 
         return self
 
@@ -190,6 +196,8 @@ class Giveaways(commands.Cog):
 
     @tasks.loop(minutes=5)
     async def save_giveaways(self):
+        if not self.LOADED:
+            return
         await self.to_config()
 
     @save_giveaways.before_loop

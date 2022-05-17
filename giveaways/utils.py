@@ -14,15 +14,17 @@ from .converters import TimeConverter
 async def dict_keys_to(d: dict, conv: Callable = int):
     final = {}
     for key, value in d.items():
+        try:
+            k = conv(key)
+        
+        except Exception:
+            k = key
+            
         if isinstance(value, dict):
-            try:
-                final[conv(key)] = await dict_keys_to(value, conv)
-                continue
-            except:
-                # if the conversion fails, just pass
-                continue
-
-        final[conv(key)] = value
+            final[k] = await dict_keys_to(value, conv)
+            continue
+            
+        final[k] = value
 
     return final
 
