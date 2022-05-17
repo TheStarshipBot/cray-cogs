@@ -16,14 +16,14 @@ async def dict_keys_to(d: dict, conv: Callable = int):
     for key, value in d.items():
         try:
             k = conv(key)
-        
+
         except Exception:
             k = key
-            
+
         if isinstance(value, dict):
             final[k] = await dict_keys_to(value, conv)
             continue
-            
+
         final[k] = value
 
     return final

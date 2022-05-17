@@ -40,7 +40,7 @@ log = logging.getLogger("red.craycogs.giveaways")
 
 
 class Giveaways(commands.Cog):
-    
+
     LOADED = False
 
     """
@@ -114,7 +114,7 @@ class Giveaways(commands.Cog):
         self.save_giveaways_task = self.save_giveaways.start()
 
         self.bot.add_dev_env_value("giveaways", lambda x: self)
-        
+
         self.LOADED = True
 
         return self
