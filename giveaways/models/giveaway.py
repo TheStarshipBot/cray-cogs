@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import random
 from datetime import datetime, timezone
 from typing import Any, Coroutine, Counter, List, Optional
@@ -133,9 +134,10 @@ class GiveawayMeta:
 
     def get_winners_str(self):
         wcounter = Counter(self.winners)
-        w = ""
-        for k, v in wcounter.items():
-            w += f"<@{k.id}> x {v}, " if v > 1 else f"<@{k.id}> "
+        w = "".join(f"<@{k.id}> x {v}, " 
+                    if v > 1
+                    else f"<@{k.id}> " 
+                    for k, v in wcounter.items())
 
         if not wcounter:
             w += "There were no winners. "
@@ -356,7 +358,7 @@ class Giveaway(GiveawayMeta):
         self.requirements = requirements
 
         req_str = await requirements.get_str(self.guild_id)
-        if not requirements.null and not req_str == "":
+        if not requirements.null and req_str != "":
             embed.add_field(name="Requirements:", value=req_str, inline=False)
 
         return embed
@@ -369,14 +371,11 @@ class Giveaway(GiveawayMeta):
                 "restricts you from joining your own giveaway."
             )
 
-        if self.requirements.null:
-            return True, ""
-
-        else:
+        if not self.requirements.null:
             requirements = self.requirements.as_role_dict(member.guild)
 
             if requirements["bypass"]:
-                maybe_bypass = any([role in member.roles for role in requirements["bypass"]])
+                maybe_bypass = any(role in member.roles for role in requirements["bypass"])
                 if maybe_bypass:
                     return True, ""
                     # All the below requirements can be overlooked if user has bypass role.
@@ -416,12 +415,10 @@ class Giveaway(GiveawayMeta):
                                 )
 
                         elif key == "amari_weekly":
-                            try:
+                            with contextlib.suppress(Exception):
                                 user = (
                                     await self.bot.amari.get_user(member.guild.id, member.id) or {}
                                 )
-                            except:
-                                pass
                             weeklyxp = user.get("weeklyExp", 0)
                             if int(weeklyxp) < int(value):
                                 return False, (
@@ -439,7 +436,7 @@ class Giveaway(GiveawayMeta):
                                     f"which is `{value - messages}` messages fewer than the required `{value}`."
                                 )
 
-            return True, ""
+        return True, ""
 
     async def add_entrant(self, member: discord.Member):
         result, statement = await self.verify_entry(member)
@@ -453,7 +450,7 @@ class Giveaway(GiveawayMeta):
         return True
 
     async def remove_entrant(self, member: discord.Member):
-        if not member.id in self._entrants:
+        if member.id not in self._entrants:
             return False
 
         self._entrants.remove(member.id)
@@ -480,7 +477,7 @@ class Giveaway(GiveawayMeta):
             ping = (
                 f"<@&{pingrole}>"
                 if pingrole
-                else f"No pingrole set. Use the `gset pingrole` command to add a pingrole."
+                else "No pingrole set. Use the `gset pingrole` command to add a pingrole."
             )
 
         kwargs = {"content": None, "embed": None}
