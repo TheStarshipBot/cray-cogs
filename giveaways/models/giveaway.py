@@ -509,13 +509,15 @@ class Giveaway(GiveawayMeta):
             )
             await channel.send(embed=embed)
 
-    def pick_winners(self, entrants: List[discord.Member] = None):
+    async def pick_winners(self, entrants: List[discord.Member] = None):
         w_list = []
         entrants = entrants or self.entrants
 
         if entrants:
             for _ in range(self.amount_of_winners):
                 w = random.choice(entrants)
+                if not (await self.verify_entry(w))[0]:
+                    continue
                 if self.flags.no_multiple_winners and w in w_list:
                     continue
 
@@ -586,7 +588,7 @@ class Giveaway(GiveawayMeta):
             entrants = await apply_multi(guild, entrants)
         link = self.jump_url
 
-        w_list = self.pick_winners(entrants)
+        w_list = await self.pick_winners(entrants)
 
         self._winners = [i.id for i in w_list]
 
@@ -694,13 +696,23 @@ class EndedGiveaway(GiveawayMeta):
             )
             return
 
-        winner = [random.choice(entrants).id for i in range(winners)]
+        winner = []
+        for _ in self.entrants:
+            w = random.choice(entrants)
+            if not (await Giveaway.verify_entry(self, w))[0]:
+                entrants.remove(w)
+                continue
+            winner.append(w.id)
+            if len(winner) == winners:
+                break
         self._winners = winner
 
         w = self.get_winners_str()
 
         await gmsg.reply(
             f"Congratulations :tada:{w}:tada:. You are the new winner(s) for the giveaway below.\n{link}"
+            if winner
+            else "There weren't enough entrants with the requirement to determine a winner.\nClick on my replied message to jump to the giveaway."
         )
 
     @classmethod
